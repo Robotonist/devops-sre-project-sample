@@ -14,7 +14,9 @@ class CheckResult(Base):
     target_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("targets.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
     completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     http_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -22,6 +24,6 @@ class CheckResult(Base):
     tls_valid: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     tls_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     tls_days_remaining: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    version: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    version: Mapped[str | None] = mapped_column(String(256), nullable=True)
     error_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(1024), nullable=True)

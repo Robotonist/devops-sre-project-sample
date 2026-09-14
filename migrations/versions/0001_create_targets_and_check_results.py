@@ -44,7 +44,7 @@ def upgrade() -> None:
         sa.Column("tls_valid", sa.Boolean(), nullable=True),
         sa.Column("tls_expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("tls_days_remaining", sa.Integer(), nullable=True),
-        sa.Column("version", sa.String(length=255), nullable=True),
+        sa.Column("version", sa.String(length=256), nullable=True),
         sa.Column("error_type", sa.String(length=64), nullable=True),
         sa.Column("error_message", sa.String(length=1024), nullable=True),
         sa.ForeignKeyConstraint(["target_id"], ["targets.id"], ondelete="CASCADE"),
