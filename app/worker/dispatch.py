@@ -1,4 +1,10 @@
+from collections.abc import Callable
+from datetime import datetime
 from uuid import UUID
+
+from sqlalchemy.orm import Session
+
+from app.db.repositories import list_due_targets
 
 
 class QueueUnavailableError(RuntimeError):
@@ -38,3 +44,15 @@ def check_redis() -> str:
         client.close()
 
     return "ok"
+
+
+def dispatch_due_targets_once(
+    db: Session,
+    *,
+    enqueue: Callable[[UUID], str] = enqueue_target_check,
+    now: datetime | None = None,
+) -> int:
+    due_targets = list_due_targets(db, now=now)
+    for target in due_targets:
+        enqueue(target.id)
+    return len(due_targets)

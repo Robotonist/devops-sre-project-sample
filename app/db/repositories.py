@@ -1,6 +1,7 @@
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.check_result import CheckResult
@@ -31,3 +32,43 @@ def list_check_results(db: Session, target_id: UUID) -> list[CheckResult]:
         .order_by(CheckResult.started_at.desc())
     )
     return list(db.scalars(statement).all())
+
+
+def list_due_targets(
+    db: Session,
+    *,
+    now: datetime | None = None,
+) -> list[Target]:
+    current_time = now or datetime.now(timezone.utc)
+    if current_time.tzinfo is None:
+        current_time = current_time.replace(tzinfo=timezone.utc)
+
+    latest_check = (
+        select(
+            CheckResult.target_id.label("target_id"),
+            func.max(CheckResult.started_at).label("last_started_at"),
+        )
+        .group_by(CheckResult.target_id)
+        .subquery()
+    )
+
+    statement = (
+        select(Target, latest_check.c.last_started_at)
+        .outerjoin(latest_check, latest_check.c.target_id == Target.id)
+        .where(Target.enabled.is_(True))
+        .order_by(Target.created_at)
+    )
+
+    due: list[Target] = []
+    for target, last_started_at in db.execute(statement):
+        if last_started_at is None:
+            due.append(target)
+            continue
+
+        if last_started_at.tzinfo is None:
+            last_started_at = last_started_at.replace(tzinfo=timezone.utc)
+
+        if last_started_at + timedelta(seconds=target.interval_seconds) <= current_time:
+            due.append(target)
+
+    return due

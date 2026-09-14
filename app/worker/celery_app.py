@@ -1,6 +1,7 @@
 from celery import Celery
 
 from app.core.config import get_settings
+from app.worker.schedule import BEAT_SCHEDULE
 
 settings = get_settings()
 
@@ -16,4 +17,5 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     task_acks_late=True,
+    beat_schedule=BEAT_SCHEDULE,
 )

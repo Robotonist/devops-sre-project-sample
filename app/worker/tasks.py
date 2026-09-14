@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_engine
 from app.worker.celery_app import celery_app
+from app.worker.dispatch import dispatch_due_targets_once
 from app.worker.executor import execute_target_check
 
 logger = logging.getLogger(__name__)
@@ -20,3 +21,9 @@ def run_target_check(target_id: str) -> str | None:
         return None
 
     return str(result_id)
+
+
+@celery_app.task(name="app.worker.tasks.dispatch_due_targets")
+def dispatch_due_targets() -> int:
+    with Session(get_engine()) as db:
+        return dispatch_due_targets_once(db)
