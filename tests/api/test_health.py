@@ -27,10 +27,11 @@ def test_healthz_reports_process_alive() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_readyz_reports_database_ready() -> None:
+def test_readyz_reports_database_and_redis_ready(monkeypatch) -> None:
     def override_get_db() -> Generator[Session, None, None]:
         yield WorkingSession()  # type: ignore[misc]
 
+    monkeypatch.setattr("app.api.health.check_redis", lambda: "ok", raising=False)
     app.dependency_overrides[get_db] = override_get_db
     try:
         response = client.get("/readyz")
@@ -38,7 +39,26 @@ def test_readyz_reports_database_ready() -> None:
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ready", "database": "ok"}
+    assert response.json() == {"status": "ready", "database": "ok", "redis": "ok"}
+
+
+def test_readyz_reports_redis_degraded_without_failing_readiness(monkeypatch) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
+        yield WorkingSession()  # type: ignore[misc]
+
+    monkeypatch.setattr("app.api.health.check_redis", lambda: "degraded", raising=False)
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        response = client.get("/readyz")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready",
+        "database": "ok",
+        "redis": "degraded",
+    }
 
 
 def test_readyz_reports_database_unavailable() -> None:

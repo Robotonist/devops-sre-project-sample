@@ -8,6 +8,7 @@ from app.db.repositories import create_target, get_target, list_check_results, l
 from app.db.session import get_db
 from app.schemas.check_result import CheckResultRead
 from app.schemas.target import TargetCreate, TargetRead
+from app.worker.dispatch import QueueUnavailableError, enqueue_target_check
 
 router = APIRouter(prefix="/api/v1/targets", tags=["targets"])
 
@@ -44,3 +45,19 @@ def list_check_results_route(
     if get_target(db, target_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target not found")
     return list_check_results(db, target_id)
+
+
+@router.post("/{target_id}/check", status_code=status.HTTP_202_ACCEPTED)
+def run_target_check_route(target_id: UUID, db: Session = Depends(get_db)) -> dict[str, str]:
+    if get_target(db, target_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target not found")
+
+    try:
+        task_id = enqueue_target_check(target_id)
+    except QueueUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Check queue unavailable",
+        ) from exc
+
+    return {"task_id": task_id}

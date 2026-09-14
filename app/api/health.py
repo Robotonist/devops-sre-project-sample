@@ -5,6 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.worker.dispatch import check_redis
 
 router = APIRouter()
 
@@ -24,4 +25,7 @@ def readyz(db: Session = Depends(get_db)) -> JSONResponse:
             content={"status": "not_ready", "database": "unavailable"},
         )
 
-    return JSONResponse(content={"status": "ready", "database": "ok"})
+    redis_state = check_redis()
+    return JSONResponse(
+        content={"status": "ready", "database": "ok", "redis": redis_state}
+    )
