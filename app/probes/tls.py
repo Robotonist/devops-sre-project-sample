@@ -2,7 +2,7 @@ import math
 import socket
 import ssl
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 DEFAULT_TIMEOUT_SECONDS = 5.0
@@ -19,9 +19,9 @@ class TLSProbeResult:
 
 def days_until_expiry(expires_at: datetime, now: datetime) -> int:
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
     if now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
+        now = now.replace(tzinfo=UTC)
     return math.floor((expires_at - now).total_seconds() / 86400)
 
 
@@ -42,9 +42,11 @@ def inspect_tls(url: str, *, timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS) -
     context = ssl.create_default_context()
 
     try:
-        with socket.create_connection((hostname, port), timeout=timeout_seconds) as raw_socket:
-            with context.wrap_socket(raw_socket, server_hostname=hostname) as tls_socket:
-                certificate = tls_socket.getpeercert()
+        with (
+            socket.create_connection((hostname, port), timeout=timeout_seconds) as raw_socket,
+            context.wrap_socket(raw_socket, server_hostname=hostname) as tls_socket,
+        ):
+            certificate = tls_socket.getpeercert()
 
         not_after = certificate.get("notAfter")
         if not isinstance(not_after, str):
@@ -54,8 +56,8 @@ def inspect_tls(url: str, *, timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS) -
                 error_message="TLS certificate expiration is unavailable",
             )
 
-        expires_at = datetime.fromtimestamp(ssl.cert_time_to_seconds(not_after), tz=timezone.utc)
-        now = datetime.now(timezone.utc)
+        expires_at = datetime.fromtimestamp(ssl.cert_time_to_seconds(not_after), tz=UTC)
+        now = datetime.now(UTC)
         remaining = days_until_expiry(expires_at, now)
         return TLSProbeResult(
             tls_valid=remaining >= 0,
@@ -68,7 +70,7 @@ def inspect_tls(url: str, *, timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS) -
             error_type="tls_error",
             error_message="TLS certificate validation failed",
         )
-    except (socket.timeout, TimeoutError):
+    except TimeoutError:
         return TLSProbeResult(
             error_type="timeout",
             error_message="TLS connection timed out",

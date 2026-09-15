@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -12,7 +12,7 @@ ProbeRunner = Callable[[Target], ProbeOutcome]
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def execute_target_check(

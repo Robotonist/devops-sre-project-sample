@@ -1,7 +1,7 @@
 import json
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 _CONTEXT_FIELDS = ("target_id", "task_id", "result_id", "error_type")
 
@@ -13,7 +13,7 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, object] = {
-            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
             "service": getattr(record, "service", self.default_service),
             "level": record.levelname,
             "message": record.getMessage(),

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -53,7 +53,7 @@ def add_result(db: Session, target: Target, *, started_at: datetime) -> None:
 def test_list_due_targets_applies_interval_and_enabled_rules() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
-    now = datetime(2026, 9, 13, 20, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 9, 13, 20, 0, tzinfo=UTC)
 
     with Session(engine) as db:
         new_target = add_target(db, name="New")
@@ -82,7 +82,7 @@ def test_dispatch_due_targets_enqueues_each_due_target() -> None:
 
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
-    now = datetime(2026, 9, 13, 20, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 9, 13, 20, 0, tzinfo=UTC)
     enqueued: list[object] = []
 
     with Session(engine) as db:

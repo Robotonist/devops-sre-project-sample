@@ -103,8 +103,8 @@ def test_run_probe_http_target_end_to_end_without_network() -> None:
 
 
 def test_tls_probe_network_failure_marks_https_target_failed(monkeypatch) -> None:
+    from app.probes import service
     from app.probes.tls import TLSProbeResult
-    import app.probes.service as service
 
     target = SimpleNamespace(
         url="https://service.test/health",

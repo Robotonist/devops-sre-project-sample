@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -39,9 +39,9 @@ def list_due_targets(
     *,
     now: datetime | None = None,
 ) -> list[Target]:
-    current_time = now or datetime.now(timezone.utc)
+    current_time = now or datetime.now(UTC)
     if current_time.tzinfo is None:
-        current_time = current_time.replace(tzinfo=timezone.utc)
+        current_time = current_time.replace(tzinfo=UTC)
 
     latest_check = (
         select(
@@ -66,7 +66,7 @@ def list_due_targets(
             continue
 
         if last_started_at.tzinfo is None:
-            last_started_at = last_started_at.replace(tzinfo=timezone.utc)
+            last_started_at = last_started_at.replace(tzinfo=UTC)
 
         if last_started_at + timedelta(seconds=target.interval_seconds) <= current_time:
             due.append(target)
