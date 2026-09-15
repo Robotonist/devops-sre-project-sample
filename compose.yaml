@@ -42,6 +42,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runtime
     command: ["alembic", "upgrade", "head"]
     environment:
       <<: *app-environment
@@ -57,6 +58,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runtime
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       <<: *app-environment
@@ -86,6 +88,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runtime
     command:
       - celery
       - -A
@@ -108,6 +111,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runtime
     command:
       - celery
       - -A
@@ -123,6 +127,18 @@ services:
       redis:
         condition: service_healthy
     init: true
+    networks:
+      - backend
+
+  dev:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    environment:
+      <<: *app-environment
+      SERVICE_NAME: dev
     networks:
       - backend
 

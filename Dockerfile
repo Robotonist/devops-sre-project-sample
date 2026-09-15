@@ -1,4 +1,4 @@
-FROM python:3.12.14-slim-bookworm
+FROM python:3.12.14-slim-bookworm AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -19,5 +19,16 @@ RUN python -m pip install --no-cache-dir . \
 USER ops
 
 EXPOSE 8000
+
+FROM base AS dev
+
+USER root
+COPY --chown=ops:ops tests ./tests
+RUN python -m pip install --no-cache-dir '.[dev]'
+USER ops
+
+CMD ["python", "-m", "pytest", "tests", "-v"]
+
+FROM base AS runtime
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -19,24 +19,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-          cache: pip
+      - name: Run tests and lint in dev container
+        run: make check
 
-      - name: Install development dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e '.[dev]'
-
-      - name: Lint
-        run: ruff check app tests
-
-      - name: Run unit and API tests
-        run: python -m pytest tests -v
-
-      - name: Build container images
+      - name: Build runtime container images
         run: docker compose build
 
       - name: Start Compose stack
@@ -62,9 +48,7 @@ jobs:
           exit 1
 
       - name: Run vertical-slice smoke test
-        env:
-          SMOKE_BASE_URL: http://localhost:8000
-        run: python -m pytest tests/integration/test_vertical_slice.py -v
+        run: make smoke
 
       - name: Show service status
         if: always()
