@@ -1,0 +1,75 @@
+name: CI
+
+"on":
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+
+      - name: Lint
+        run: ruff check app tests
+
+      - name: Run unit and API tests
+        run: python -m pytest tests -v
+
+      - name: Build container images
+        run: docker compose build
+
+      - name: Start Compose stack
+        run: docker compose up -d
+
+      - name: Verify migrations
+        run: docker compose run --rm migrate
+
+      - name: Wait for API readiness
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://localhost:8000/readyz; then
+              echo
+              exit 0
+            fi
+            echo "API not ready yet (attempt ${attempt}/30)"
+            sleep 2
+          done
+
+          echo "API did not become ready"
+          docker compose ps
+          docker compose logs --tail=200
+          exit 1
+
+      - name: Run vertical-slice smoke test
+        env:
+          SMOKE_BASE_URL: http://localhost:8000
+        run: python -m pytest tests/integration/test_vertical_slice.py -v
+
+      - name: Show service status
+        if: always()
+        run: docker compose ps
+
+      - name: Tear down Compose stack
+        if: always()
+        run: docker compose down -v --remove-orphans
