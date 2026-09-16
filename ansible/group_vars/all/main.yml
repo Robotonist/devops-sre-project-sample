@@ -1,0 +1,19 @@
+---
+ops_appliance_user: opsappliance
+ops_appliance_uid: 1100
+ops_appliance_subid_start: 200000
+ops_appliance_subid_count: 65536
+ops_appliance_quadlet_dir: "/etc/containers/systemd/users/1100"
+ops_appliance_config_dir: "/home/opsappliance/.config/ops-appliance"
+ops_appliance_network: ops-appliance
+ops_appliance_postgres_volume: ops-postgres-data
+
+ops_appliance_image: ghcr.io/robotonist/ops-appliance
+ops_appliance_version: v0.2.0
+ops_appliance_api_port: 8000
+
+postgres_image: docker.io/library/postgres:16.15-bookworm
+postgres_db: ops
+postgres_user: ops
+
+redis_image: docker.io/library/redis:7.4.11-alpine

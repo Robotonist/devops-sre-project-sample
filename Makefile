@@ -1,7 +1,7 @@
 COMPOSE ?= docker compose
 DEV_RUN = $(COMPOSE) run --rm --build --no-deps dev
 
-.PHONY: init build up down logs migrate test lint check smoke ps reset
+.PHONY: init build up down logs migrate test lint check smoke infra-check ps reset
 
 init:
 	@test -f .env || cp .env.example .env
@@ -31,7 +31,7 @@ lint: init
 	$(DEV_RUN) ruff check app tests
 
 check: init
-	$(DEV_RUN) sh -c "python -m pytest tests -v && ruff check app tests"
+	$(DEV_RUN) sh -c "python -m pytest tests -v && ruff check app tests && cd ansible && ansible-playbook -i inventory/ci.ini deploy.yml --syntax-check && ansible-lint --project-dir . ."
 
 smoke: init
 	$(COMPOSE) run --rm --build --no-deps \
@@ -40,3 +40,6 @@ smoke: init
 
 reset:
 	$(COMPOSE) down -v --remove-orphans
+
+infra-check: init
+	$(DEV_RUN) sh -c "cd ansible && ansible-playbook -i inventory/ci.ini deploy.yml --syntax-check && ansible-lint --project-dir . ."

@@ -24,8 +24,10 @@ FROM base AS dev
 
 USER root
 COPY --chown=ops:ops tests ./tests
+COPY --chown=ops:ops ansible ./ansible
 RUN python -m pip install --no-cache-dir '.[dev]'
 USER ops
+RUN ansible-galaxy collection install -r ansible/requirements.yml
 
 CMD ["python", "-m", "pytest", "tests", "-v"]
 
