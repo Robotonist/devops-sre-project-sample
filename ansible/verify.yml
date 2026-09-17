@@ -33,3 +33,16 @@
           - podman_version.stdout is search("podman version 5\\.")
           - cgroup_version.stdout == "v2"
           - linger_state.stdout == "yes"
+
+    - name: Read UFW status
+      ansible.builtin.command: ufw status verbose
+      register: ufw_status
+      changed_when: false
+
+    - name: Assert firewall policy
+      ansible.builtin.assert:
+        that:
+          - '"Status: active" in ufw_status.stdout'
+          - '"Default: deny (incoming)" in ufw_status.stdout'
+          - 'ufw_status.stdout is search("22/tcp|OpenSSH")'
+          - '"8000/tcp" in ufw_status.stdout'

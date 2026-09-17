@@ -1,0 +1,27 @@
+---
+- name: Default deny incoming traffic
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+
+- name: Default allow outgoing traffic
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+
+# The ordering is intentional: SSH is allowed before UFW is enabled, so Ansible doesn't lock itself out of the VM.
+- name: Allow SSH before enabling firewall
+  community.general.ufw:
+    rule: allow
+    name: OpenSSH
+
+- name: Allow Ops Appliance API
+  community.general.ufw:
+    rule: allow
+    port: "{{ ops_appliance_api_port }}"
+    proto: tcp
+    comment: Ops Appliance API
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled

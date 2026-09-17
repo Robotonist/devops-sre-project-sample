@@ -17,3 +17,5 @@
       tags: [base]
     - role: podman
       tags: [podman]
+    - role: firewall
+      tags: [firewall]
