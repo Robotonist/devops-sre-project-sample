@@ -1,0 +1,35 @@
+---
+- name: Verify Ops Appliance host
+  hosts: appliance
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Read opsappliance passwd entry
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ ops_appliance_user }}"
+
+    - name: Verify Podman package
+      ansible.builtin.command: podman --version
+      register: podman_version
+      changed_when: false
+
+    - name: Verify cgroup v2
+      ansible.builtin.command: podman info --format "{{ '{{' }}.Host.CgroupsVersion{{ '}}' }}"
+      become: true
+      become_user: "{{ ops_appliance_user }}"
+      register: cgroup_version
+      changed_when: false
+
+    - name: Verify linger is enabled
+      ansible.builtin.command: loginctl show-user "{{ ops_appliance_user }}" -p Linger --value
+      register: linger_state
+      changed_when: false
+
+    - name: Assert host runtime contract
+      ansible.builtin.assert:
+        that:
+          - podman_version.stdout is search("podman version 5\\.")
+          - cgroup_version.stdout == "v2"
+          - linger_state.stdout == "yes"

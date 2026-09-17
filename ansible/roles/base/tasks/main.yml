@@ -1,0 +1,57 @@
+---
+- name: Install baseline host packages
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - uidmap
+      - dbus-user-session
+      - ufw
+    state: present
+    update_cache: true
+
+- name: Create appliance service account
+  ansible.builtin.user:
+    name: "{{ ops_appliance_user }}"
+    uid: "{{ ops_appliance_uid }}"
+    create_home: true
+    shell: /bin/bash
+    password_lock: true
+    state: present
+
+- name: Ensure subordinate UID mapping
+  ansible.builtin.lineinfile:
+    path: /etc/subuid
+    regexp: "^{{ ops_appliance_user }}:"
+    line: "{{ ops_appliance_user }}:{{ ops_appliance_subid_start }}:{{ ops_appliance_subid_count }}"
+    create: true
+    mode: "0644"
+
+- name: Ensure subordinate GID mapping
+  ansible.builtin.lineinfile:
+    path: /etc/subgid
+    regexp: "^{{ ops_appliance_user }}:"
+    line: "{{ ops_appliance_user }}:{{ ops_appliance_subid_start }}:{{ ops_appliance_subid_count }}"
+    create: true
+    mode: "0644"
+
+- name: Enable lingering for appliance service account
+  ansible.builtin.command: "loginctl enable-linger {{ ops_appliance_user }}"
+  args:
+    creates: "/var/lib/systemd/linger/{{ ops_appliance_user }}"
+
+- name: Create administrator-managed rootless Quadlet directory
+  ansible.builtin.file:
+    path: "{{ ops_appliance_quadlet_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create appliance configuration directory
+  ansible.builtin.file:
+    path: "{{ ops_appliance_config_dir }}"
+    state: directory
+    owner: "{{ ops_appliance_user }}"
+    group: "{{ ops_appliance_user }}"
+    mode: "0700"
