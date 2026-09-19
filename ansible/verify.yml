@@ -46,3 +46,38 @@
           - '"Default: deny (incoming)" in ufw_status.stdout'
           - 'ufw_status.stdout is search("22/tcp|OpenSSH")'
           - '"8000/tcp" in ufw_status.stdout'
+
+    - name: List rootless Podman containers
+      ansible.builtin.command: podman ps --format "{{ '{{' }}.Names{{ '}}' }}"
+      become: true
+      become_user: "{{ ops_appliance_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+      register: podman_containers
+      changed_when: false
+
+    - name: Assert data containers exist
+      ansible.builtin.assert:
+        that:
+          - '"ops-postgres" in podman_containers.stdout_lines'
+          - '"ops-redis" in podman_containers.stdout_lines'
+
+    - name: Verify PostgreSQL readiness
+      ansible.builtin.command: >
+        podman exec ops-postgres
+        pg_isready -U "{{ postgres_user }}" -d "{{ postgres_db }}"
+      become: true
+      become_user: "{{ ops_appliance_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+      changed_when: false
+
+    - name: Verify Redis readiness
+      ansible.builtin.command: podman exec ops-redis redis-cli ping
+      become: true
+      become_user: "{{ ops_appliance_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+      register: redis_ping
+      changed_when: false
+      failed_when: redis_ping.stdout != "PONG"

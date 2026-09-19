@@ -19,3 +19,5 @@
       tags: [podman]
     - role: firewall
       tags: [firewall]
+    - role: appliance
+      tags: [appliance]

@@ -1,0 +1,100 @@
+---
+- name: Render PostgreSQL environment file
+  ansible.builtin.template:
+    src: postgres.env.j2
+    dest: "{{ ops_appliance_config_dir }}/postgres.env"
+    owner: "{{ ops_appliance_user }}"
+    group: "{{ ops_appliance_user }}"
+    mode: "0600"
+  no_log: true
+
+- name: Render Podman network Quadlet
+  ansible.builtin.template:
+    src: ops-network.network.j2
+    dest: "{{ ops_appliance_quadlet_dir }}/ops-network.network"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Render PostgreSQL volume Quadlet
+  ansible.builtin.template:
+    src: ops-postgres-data.volume.j2
+    dest: "{{ ops_appliance_quadlet_dir }}/ops-postgres-data.volume"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Render PostgreSQL container Quadlet
+  ansible.builtin.template:
+    src: ops-postgres.container.j2
+    dest: "{{ ops_appliance_quadlet_dir }}/ops-postgres.container"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Render Redis container Quadlet
+  ansible.builtin.template:
+    src: ops-redis.container.j2
+    dest: "{{ ops_appliance_quadlet_dir }}/ops-redis.container"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Validate generated Quadlets
+  ansible.builtin.command: >
+    systemd-analyze --user --generators=true verify
+    ops-postgres.service
+    ops-redis.service
+  become: true
+  become_user: "{{ ops_appliance_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+  changed_when: false
+
+- name: Reload rootless systemd user manager
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+    scope: user
+  become: true
+  become_user: "{{ ops_appliance_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+
+- name: Start PostgreSQL and Redis
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: started
+    scope: user
+  become: true
+  become_user: "{{ ops_appliance_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+  loop:
+    - ops-postgres.service
+    - ops-redis.service
+
+- name: Wait for PostgreSQL readiness
+  ansible.builtin.command: >
+    podman exec ops-postgres
+    pg_isready -U "{{ postgres_user }}" -d "{{ postgres_db }}"
+  become: true
+  become_user: "{{ ops_appliance_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+  register: appliance_postgres_ready
+  retries: 20
+  delay: 2
+  until: appliance_postgres_ready.rc == 0
+  changed_when: false
+
+- name: Wait for Redis readiness
+  ansible.builtin.command: podman exec ops-redis redis-cli ping
+  become: true
+  become_user: "{{ ops_appliance_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+  register: appliance_redis_ready
+  retries: 20
+  delay: 2
+  until: appliance_redis_ready.stdout == "PONG"
+  changed_when: false
