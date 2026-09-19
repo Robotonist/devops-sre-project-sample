@@ -2,6 +2,7 @@
 - name: Install baseline host packages
   ansible.builtin.apt:
     name:
+      - acl
       - ca-certificates
       - curl
       - uidmap
