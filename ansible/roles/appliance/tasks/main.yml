@@ -8,6 +8,15 @@
     mode: "0600"
   no_log: true
 
+- name: Render application environment file
+  ansible.builtin.template:
+    src: app.env.j2
+    dest: "{{ ops_appliance_config_dir }}/app.env"
+    owner: "{{ ops_appliance_user }}"
+    group: "{{ ops_appliance_user }}"
+    mode: "0600"
+  no_log: true
+
 - name: Render Podman network Quadlet
   ansible.builtin.template:
     src: ops-network.network.j2
@@ -98,3 +107,116 @@
   delay: 2
   until: appliance_redis_ready.stdout == "PONG"
   changed_when: false
+
+- name: Reject floating application tag
+  ansible.builtin.assert:
+    that:
+      - ops_appliance_version != "latest"
+      - ops_appliance_version | length > 0
+    fail_msg: "The appliance must deploy an explicit non-latest image tag"
+
+- name: Pull explicit application image
+  ansible.builtin.command: "podman pull {{ ops_appliance_image }}:{{ ops_appliance_version }}"
+  become: true
+  become_user: "{{ ops_appliance_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+  register: appliance_image_pull
+  changed_when: >
+    'Copying blob' in appliance_image_pull.stdout or
+    'Storing signatures' in appliance_image_pull.stdout
+
+
+- name: Apply database migrations
+  ansible.builtin.command:
+    argv:
+      - podman
+      - run
+      - --rm
+      - --network
+      - "{{ ops_appliance_network }}"
+      - --env-file
+      - "{{ ops_appliance_config_dir }}/app.env"
+      - "{{ ops_appliance_image }}:{{ ops_appliance_version }}"
+      - alembic
+      - upgrade
+      - head
+  become: true
+  become_user: "{{ ops_appliance_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+  register: appliance_migration_result
+  changed_when: true
+
+- name: Render API container Quadlet
+  ansible.builtin.template:
+    src: ops-api.container.j2
+    dest: "{{ ops_appliance_quadlet_dir }}/ops-api.container"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Render Worker container Quadlet
+  ansible.builtin.template:
+    src: ops-worker.container.j2
+    dest: "{{ ops_appliance_quadlet_dir }}/ops-worker.container"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Render Beat container Quadlet
+  ansible.builtin.template:
+    src: ops-beat.container.j2
+    dest: "{{ ops_appliance_quadlet_dir }}/ops-beat.container"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Validate application Quadlets
+  ansible.builtin.command: >
+    systemd-analyze --user --generators=true verify
+    ops-api.service
+    ops-worker.service
+    ops-beat.service
+  become: true
+  become_user: "{{ ops_appliance_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+  changed_when: false
+
+- name: Reload rootless systemd user manager for application services
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+    scope: user
+  become: true
+  become_user: "{{ ops_appliance_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+
+- name: Restart application services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: restarted
+    scope: user
+  become: true
+  become_user: "{{ ops_appliance_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+  loop:
+    - ops-api.service
+    - ops-worker.service
+    - ops-beat.service
+
+- name: Wait for Ops Appliance readiness
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ ops_appliance_api_port }}/readyz"
+    status_code: 200
+    return_content: true
+  register: appliance_ready
+  retries: 30
+  delay: 2
+  until:
+    - appliance_ready.status == 200
+    - appliance_ready.json.status == "ready"
+    - appliance_ready.json.database == "ok"
+    - appliance_ready.json.redis == "ok"

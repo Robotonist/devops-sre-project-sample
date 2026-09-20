@@ -43,3 +43,9 @@ reset:
 
 infra-check: init
 	$(DEV_RUN) sh -c "cd ansible && ansible-playbook -i inventory/ci.ini deploy.yml --syntax-check && ansible-lint --project-dir . ."
+
+deploy:
+	ansible-playbook -i ansible/inventory/local.ini ansible/deploy.yml
+
+verify-appliance:
+	ansible-playbook -i ansible/inventory/local.ini ansible/verify.yml

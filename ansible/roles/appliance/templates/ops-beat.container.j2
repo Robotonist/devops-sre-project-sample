@@ -1,0 +1,19 @@
+[Unit]
+Description=Ops Appliance Beat Scheduler
+After=ops-postgres.service ops-redis.service
+Wants=ops-postgres.service ops-redis.service
+
+[Container]
+Image={{ ops_appliance_image }}:{{ ops_appliance_version }}
+ContainerName=ops-beat
+Network=ops-network.network
+EnvironmentFile={{ ops_appliance_config_dir }}/app.env
+Environment=SERVICE_NAME=beat
+Exec=celery -A app.worker.celery_app:celery_app beat --loglevel=INFO
+
+[Service]
+Restart=always
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target
