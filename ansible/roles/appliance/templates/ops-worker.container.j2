@@ -1,0 +1,19 @@
+[Unit]
+Description=Ops Appliance Worker
+After=ops-postgres.service ops-redis.service
+Wants=ops-postgres.service ops-redis.service
+
+[Container]
+Image={{ ops_appliance_image }}:{{ ops_appliance_version }}
+ContainerName=ops-worker
+Network=ops-network.network
+EnvironmentFile={{ ops_appliance_config_dir }}/app.env
+Environment=SERVICE_NAME=worker
+Exec=celery -A app.worker.celery_app:celery_app worker --loglevel=INFO
+
+[Service]
+Restart=always
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,22 @@
+[Unit]
+Description=Ops Appliance PostgreSQL
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image={{ postgres_image }}
+ContainerName=ops-postgres
+Network=ops-network.network
+EnvironmentFile={{ ops_appliance_config_dir }}/postgres.env
+Volume=ops-postgres-data.volume:/var/lib/postgresql/data
+HealthCmd=pg_isready -U {{ postgres_user }} -d {{ postgres_db }}
+HealthInterval=5s
+HealthTimeout=3s
+HealthRetries=10
+
+[Service]
+Restart=always
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

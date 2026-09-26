@@ -5,3 +5,7 @@ __pycache__/
 .ruff_cache/
 *.pyc
 .DS_Store
+*.egg-info/
+ansible/.ansible/
+ansible/inventory/local.ini
+ansible/group_vars/all/secrets.yml

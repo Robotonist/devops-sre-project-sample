@@ -1,5 +1,7 @@
 FROM python:3.12.14-slim-bookworm AS base
 
+LABEL org.opencontainers.image.source="https://github.com/Robotonist/devops-sre-project-sample"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
@@ -24,8 +26,10 @@ FROM base AS dev
 
 USER root
 COPY --chown=ops:ops tests ./tests
+COPY --chown=ops:ops ansible ./ansible
 RUN python -m pip install --no-cache-dir '.[dev]'
 USER ops
+RUN ansible-galaxy collection install -r ansible/requirements.yml
 
 CMD ["python", "-m", "pytest", "tests", "-v"]
 

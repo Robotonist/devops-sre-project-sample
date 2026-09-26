@@ -1,0 +1,21 @@
+[Unit]
+Description=Ops Appliance Redis
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image={{ redis_image }}
+ContainerName=ops-redis
+Network=ops-network.network
+Exec=redis-server --save "" --appendonly no
+HealthCmd=redis-cli ping
+HealthInterval=5s
+HealthTimeout=3s
+HealthRetries=10
+
+[Service]
+Restart=always
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

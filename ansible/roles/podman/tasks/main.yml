@@ -1,0 +1,12 @@
+---
+- name: Install Podman
+  ansible.builtin.apt:
+    name: podman
+    state: present
+    update_cache: true
+
+- name: Verify installed Podman major version
+  ansible.builtin.command: podman --version
+  register: podman_installed
+  changed_when: false
+  failed_when: podman_installed.stdout is not search("podman version 5\\.")

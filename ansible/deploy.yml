@@ -1,0 +1,23 @@
+---
+- name: Deploy Ops Appliance
+  hosts: appliance
+  gather_facts: true
+  become: true
+
+  pre_tasks:
+    - name: Require Ubuntu 26.04
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.distribution == "Ubuntu"
+          - ansible_facts.distribution_version is version("26.04", "==")
+        fail_msg: "v0.2 requires Ubuntu 26.04 LTS"
+
+  roles:
+    - role: base
+      tags: [base]
+    - role: podman
+      tags: [podman]
+    - role: firewall
+      tags: [firewall]
+    - role: appliance
+      tags: [appliance]

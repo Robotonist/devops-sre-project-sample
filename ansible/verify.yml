@@ -1,0 +1,117 @@
+---
+- name: Verify Ops Appliance host
+  hosts: appliance
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Read opsappliance passwd entry
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ ops_appliance_user }}"
+
+    - name: Verify Podman package
+      ansible.builtin.command: podman --version
+      register: podman_version
+      changed_when: false
+
+    - name: Verify cgroup v2
+      ansible.builtin.command: podman info --format "{{ '{{' }}.Host.CgroupsVersion{{ '}}' }}"
+      become: true
+      become_user: "{{ ops_appliance_user }}"
+      register: cgroup_version
+      changed_when: false
+
+    - name: Verify linger is enabled
+      ansible.builtin.command: loginctl show-user "{{ ops_appliance_user }}" -p Linger --value
+      register: linger_state
+      changed_when: false
+
+    - name: Assert host runtime contract
+      ansible.builtin.assert:
+        that:
+          - podman_version.stdout is search("podman version 5\\.")
+          - cgroup_version.stdout == "v2"
+          - linger_state.stdout == "yes"
+
+    - name: Read UFW status
+      ansible.builtin.command: ufw status verbose
+      register: ufw_status
+      changed_when: false
+
+    - name: Assert firewall policy
+      ansible.builtin.assert:
+        that:
+          - '"Status: active" in ufw_status.stdout'
+          - '"Default: deny (incoming)" in ufw_status.stdout'
+          - 'ufw_status.stdout is search("22/tcp|OpenSSH")'
+          - '"8000/tcp" in ufw_status.stdout'
+
+    - name: List rootless Podman containers
+      ansible.builtin.command: podman ps --format "{{ '{{' }}.Names{{ '}}' }}"
+      become: true
+      become_user: "{{ ops_appliance_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+      register: podman_containers
+      changed_when: false
+
+    - name: Assert data containers exist
+      ansible.builtin.assert:
+        that:
+          - '"ops-postgres" in podman_containers.stdout_lines'
+          - '"ops-redis" in podman_containers.stdout_lines'
+
+    - name: Verify PostgreSQL readiness
+      ansible.builtin.command: >
+        podman exec ops-postgres
+        pg_isready -U "{{ postgres_user }}" -d "{{ postgres_db }}"
+      become: true
+      become_user: "{{ ops_appliance_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+      changed_when: false
+
+    - name: Verify Redis readiness
+      ansible.builtin.command: podman exec ops-redis redis-cli ping
+      become: true
+      become_user: "{{ ops_appliance_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+      register: redis_ping
+      changed_when: false
+      failed_when: redis_ping.stdout != "PONG"
+
+    - name: Read application user services
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        scope: user
+      become: true
+      become_user: "{{ ops_appliance_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ ops_appliance_uid }}"
+      loop:
+        - ops-api.service
+        - ops-worker.service
+        - ops-beat.service
+      register: app_service_states
+
+    - name: Assert application services are active
+      ansible.builtin.assert:
+        that:
+          - item.status.ActiveState == "active"
+      loop: "{{ app_service_states.results }}"
+
+    - name: Verify API readiness from appliance host
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ ops_appliance_api_port }}/readyz"
+        status_code: 200
+        return_content: true
+      register: readiness
+
+    - name: Assert readiness dependencies
+      ansible.builtin.assert:
+        that:
+          - readiness.json.status == "ready"
+          - readiness.json.database == "ok"
+          - readiness.json.redis == "ok"
