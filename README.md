@@ -80,6 +80,91 @@ For the normal developer path you need:
 
 You do **not** need to install Python, pytest, or Ruff on the host for the standard workflow. Tests and linting run in a dedicated development container.
 
+## Operating modes
+
+The project supports two intentionally different runtime paths.
+
+### Development and validation
+
+Docker Compose remains the normal developer workflow. It provides the same API, PostgreSQL, Redis, Worker, and Beat process boundaries in a fast local environment suitable for development, tests, smoke validation, and CI.
+
+```text
+Developer workstation
+    |
+    +-- Docker Compose
+         +-- API
+         +-- Worker
+         +-- Beat
+         +-- PostgreSQL
+         +-- Redis
+```
+
+### Linux appliance
+
+v0.2 adds a production-style single-node appliance deployment:
+
+```text
+Mac / operator
+     |
+     | SSH / HTTP 8000
+     v
+Ubuntu 26.04 + UFW
+     |
+     +-- Ansible-managed host configuration
+     |
+     +-- systemd --user (opsappliance)
+          |
+          +-- rootless Podman
+               +-- ops-api
+               +-- ops-worker
+               +-- ops-beat
+               +-- ops-postgres
+               +-- ops-redis
+```
+
+The application architecture is intentionally unchanged between the two modes. Docker Compose operates the development stack; systemd supervises the Linux appliance using services generated from Quadlet definitions.
+
+## Linux appliance deployment
+
+The v0.2 appliance requires:
+
+- an Ubuntu 26.04 LTS VM prepared using [docs/runbooks/v0.2-utm-bootstrap.md](docs/runbooks/v0.2-utm-bootstrap.md)
+- SSH access from the control machine
+- Ansible installed on the control machine
+- the `community.general` Ansible collection
+- a local inventory copied from `ansible/inventory/local.ini.example`
+- a local secrets file copied from `ansible/group_vars/all/secrets.yml.example`
+- an explicit published GHCR application image tag
+
+The real inventory and secrets files are intentionally excluded from Git.
+
+Deploy the release image:
+
+```bash
+make deploy ANSIBLE_ARGS="-k -K -e ops_appliance_version=v0.2.0"
+```
+
+Verify the deployed appliance:
+
+```bash
+make verify-appliance ANSIBLE_ARGS="-k -K"
+```
+
+The deployment converges the Ubuntu host configuration, deploys the rootless Podman services, applies Alembic database migrations, and waits for the API readiness endpoint before reporting success.
+
+Verify the API directly from the control machine:
+
+```bash
+curl --fail http://<guest-ip>:8000/healthz
+curl --fail http://<guest-ip>:8000/readyz
+```
+
+A ready appliance should return:
+
+```json
+{"status":"ready","database":"ok","redis":"ok"}
+```
+
 ## Quick start
 
 Clone the repository and start the appliance:
@@ -176,7 +261,7 @@ The Makefile is the primary operator/developer interface.
 
 ```bash
 make build     # build runtime images
-make up        # start the appliance
+make up        # start the local Compose stack
 make ps        # show service state
 make logs      # follow Compose logs
 make migrate   # run Alembic migrations
@@ -186,6 +271,9 @@ make check     # run tests + lint in the dev container
 make smoke     # run the live vertical-slice smoke test against a running stack
 make down      # stop containers but preserve PostgreSQL data
 make reset     # stop containers and delete the local PostgreSQL volume
+make infra-check                                    # validate Ansible syntax and lint
+make deploy ANSIBLE_ARGS="-k -K -e ops_appliance_version=v0.2.0"
+make verify-appliance ANSIBLE_ARGS="-k -K"
 ```
 
 `make reset` is destructive to local database state. Normal shutdown should use `make down`.
@@ -238,9 +326,11 @@ Pull requests and pushes to `main` run GitHub Actions validation that:
 
 This provides a clean Linux validation environment independent of the developer workstation.
 
-## v0.1 scope
+## Release scope
 
-v0.1 focuses on one complete operational vertical slice:
+### v0.1 — local vertical slice
+
+v0.1 established the application and operational boundaries:
 
 ```text
 target definition
@@ -253,21 +343,41 @@ target definition
     -> API history
 ```
 
-Intentional v0.1 non-goals include authentication, a custom frontend, alert delivery, production TLS termination, full observability tooling, infrastructure-as-code, backups, automated rollback, and Kubernetes.
+### v0.2 — Linux appliance
+
+v0.2 extends that same application into a reproducible Linux deployment:
+
+- Ubuntu 26.04 LTS
+- Ansible-managed host configuration
+- rootless Podman
+- systemd user services generated from Quadlet definitions
+- UFW firewall policy
+- persistent PostgreSQL and ephemeral Redis
+- explicit multi-architecture GHCR images
+- deployment-time database migrations
+- readiness-gated deployment
+- reboot recovery and persistence acceptance testing
+
+The application process boundaries remain intentionally unchanged between the Compose and appliance runtimes.
 
 ## Roadmap
 
-- **v0.2 — Linux appliance:** Ubuntu, Podman, systemd/Quadlet, Ansible, firewall/network hardening
+- **v0.1 — Local vertical slice:** complete
+- **v0.2 — Linux appliance:** current
 - **v0.3 — Observability:** Prometheus, Grafana, centralized logging, OpenTelemetry
 - **v0.4 — Reliability:** alerting, SLOs, failure injection, runbooks, incident exercises
 - **v0.5 — Secure delivery:** scanning, SBOMs, signing/attestations, stronger secret handling
 - **v0.6 — Lifecycle operations:** backups, restores, upgrades, rollback
 - **v1.0 — Interview-ready appliance:** polished demo, threat model, postmortems, reproducible deployment
 
-The project deliberately does not start with Kubernetes. v0.1 proves the application and operational boundaries first; later deployment models can reuse those boundaries without redesigning the application.
+The project deliberately does not start with Kubernetes. v0.1 established the application boundaries, and v0.2 demonstrates that those same boundaries can be deployed and operated on a Linux host without redesigning the application.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [v0.1 Design](docs/design.md)
 - [v0.1 Implementation Plan](docs/superpowers/plans/2026-09-13-v0.1-implementation.md)
+- [v0.2 Linux Appliance Design](docs/superpowers/specs/2026-09-14-v0.2-linux-appliance-design.md)
+- [v0.2 Linux Appliance Implementation Plan](docs/superpowers/plans/2026-09-14-v0.2-linux-appliance-implementation.md)
+- [v0.2 UTM Bootstrap Runbook](docs/runbooks/v0.2-utm-bootstrap.md)
+- [v0.2 Acceptance Evidence](docs/validation/v0.2-acceptance.md)

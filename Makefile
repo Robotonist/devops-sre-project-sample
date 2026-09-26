@@ -1,7 +1,9 @@
 COMPOSE ?= docker compose
 DEV_RUN = $(COMPOSE) run --rm --build --no-deps dev
+ANSIBLE_PLAYBOOK ?= ansible-playbook
+ANSIBLE_ARGS ?=
 
-.PHONY: init build up down logs migrate test lint check smoke infra-check ps reset
+.PHONY: init build up down logs migrate test lint check smoke infra-check ps reset deploy verify-appliance
 
 init:
 	@test -f .env || cp .env.example .env
@@ -45,7 +47,7 @@ infra-check: init
 	$(DEV_RUN) sh -c "cd ansible && ansible-playbook -i inventory/ci.ini deploy.yml --syntax-check && ansible-lint --project-dir . ."
 
 deploy:
-	ansible-playbook -i ansible/inventory/local.ini ansible/deploy.yml
+	$(ANSIBLE_PLAYBOOK) $(ANSIBLE_ARGS) -i ansible/inventory/local.ini ansible/deploy.yml
 
 verify-appliance:
-	ansible-playbook -i ansible/inventory/local.ini ansible/verify.yml
+	$(ANSIBLE_PLAYBOOK) $(ANSIBLE_ARGS) -i ansible/inventory/local.ini ansible/verify.yml
